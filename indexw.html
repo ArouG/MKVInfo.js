@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Test</title>
+    <style type="text/css">
+        #inp{
+            display : inline; 
+        } 
+        #opt{
+            display : none;     
+        }
+    </style> 
+    <script type="text/javascript">
+            var ind=0;
+            var res=[];
+            var fileinput=[];
+
+        function change_ind(t) {
+            document.querySelector('#out').innerHTML = "";
+            document.querySelector('#out').innerHTML = res[t].data;
+        }  
+
+        function init(){
+            document.querySelector('#inp').onchange = function(e) {
+
+                var MKVworker = new Worker('workerMKV.js'); 
+
+                MKVworker.addEventListener('message', function(e) {
+                    if (e.data.data != 'nop'){
+                        res.push(e.data);
+                    } else {
+                        var tmp={};
+                        tmp.data=fileinput[res.length].name+" isn't a MKV file !";
+                        res.push(tmp);
+                    }    
+                    if (res.length < fileinput.length){
+                        ind++;
+                        MKVworker.postMessage(fileinput[ind]);
+                    } else {
+                        document.getElementById("inp").style.display="none";
+                        for (var k=0; k<res.length; k++){
+                            new_element = new Option(fileinput[k].name, k, false, true);
+                            document.getElementById("opt").options[document.getElementById("opt").options.length] = new_element;
+                        }
+                        document.querySelector("#opt").selectedIndex=0;
+                        document.querySelector("#opt").style.display="block";
+                        document.querySelector('#out').innerHTML = "";
+                        document.querySelector('#out').innerHTML = res[0].data;
+                    }
+                }, false);
+
+                fileinput=e.target.files;
+                MKVworker.postMessage(fileinput[ind]);
+            }
+        }
+    </script>
+</head>
+
+<body onload="init()">
+    <center>
+        <input id="inp" type="file" multiple>
+        <select size="1" id="opt" onchange="change_ind(document.getElementById('opt').options.selectedIndex)"></select>
+        <br>
+        <textarea id="out" rows="40" cols="120">Et alors ?? Choisissez un fichier type MKV (.MKV, .M4V, ... )</textarea>
+    </center>
+    <script type="text/javascript">  
+
+        document.querySelector('#inp').onchange = function(e) {
+            
+            var ind=0;
+            var res=[];
+            var fileinput=[];
+
+            var MKVworker = new Worker('workerMKV.js'); 
+
+            MKVworker.addEventListener('message', function(e) {
+                res.push(e.data);
+                if (res.length < fileinput.length){
+                    ind++;
+                    MKVworker.postMessage(fileinput[ind]);
+                } else {
+                    document.getElementById("inp").style.display="none";
+                    for (var k=0; k<res.length; k++){
+                        new_element = new Option(fileinput[k].name, k, false, true);
+                        document.getElementById("opt").options[document.getElementById("opt").options.length] = new_element;
+                    }
+                    document.querySelector("#opt").selectedIndex=0;
+                    document.querySelector("#opt").style.display="block";
+                    document.querySelector('#out').innerHTML = "";
+                    document.querySelector('#out').innerHTML = res[0].data;
+                }
+            }, false);
+
+            fileinput=e.target.files;
+            MKVworker.postMessage(fileinput[ind]);
+        }
+    </script>
+</body>
+
+</html>
