@@ -40,4 +40,5 @@
 #Try it ? 
     http://aroug.eu/MKVInfo/   (multiple + worker + use MKVInfo.min.js)    
     
-#Troubles with Firefox or Internet Explorer ? try index.html ! (indexw.html is good with Chrome ^_^ )    
+#Troubles with Firefox or Internet Explorer ? 
+    Try index.html ! (indexw.html is good with Chrome ^_^ )    
