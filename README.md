@@ -41,4 +41,5 @@
     http://aroug.eu/MKVInfo/   (multiple + worker + use MKVInfo.min.js)    
     
 #Troubles with Firefox or Internet Explorer ? 
-    Try index.html ! (indexw.html is good with Chrome ^_^ )    
+    Try index.html ! (indexw.html is good with Chrome ^_^ )   
+    WHY ? Because Firefox don't recognize Matroska files (or Webm file) as mime-type = 'video/x-matroska' or 'video/webm' but as mime-type = 'application/force-download' !
