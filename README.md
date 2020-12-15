@@ -43,3 +43,7 @@
 #Troubles with Firefox or Internet Explorer ? 
     Try index.html ! (indexw.html is good with Chrome ^_^ )   
     WHY ? Because Firefox don't recognize Matroska files (or Webm file) as mime-type = 'video/x-matroska' or 'video/webm' but as mime-type = 'application/force-download' !
+    
+#Evolutions :
+    In order to deal with "callbacks hell", I used async/await for clearing code (no more stack troubles :-)
+    Now, for multiple files, workers do the job with some kind of "parallelism" : gain half time !
