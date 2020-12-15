@@ -1,5 +1,8 @@
 importScripts('MKVInfo.min.js');
-
+// seules petites evolutions :
+// prise en compte de l'indice du fichier transmis dans le message (lnum) pour pouvoir le retourner à l'appelant et
+// présentation du retour : suppression des lignes "more info" pour les Codecs Audio et Video
+// date : 2020/12/14
 
         function duree(s) {
 
@@ -23,11 +26,11 @@ importScripts('MKVInfo.min.js');
                 }
             }
 
-            var out = '';
-            var lhh = '';
-            var lmn = '';
-            var lss = '';
-            var lms = '';
+            let out = '';
+            let lhh = '';
+            let lmn = '';
+            let lss = '';
+            let lms = '';
             lhh = Math.floor(s / 3600);
             lmn = Math.floor((s - lhh * 3600) / 60);
             lss = Math.floor(s - lhh * 3600 - lmn * 60);
@@ -67,12 +70,12 @@ importScripts('MKVInfo.min.js');
         }
 
         function humanFileSize(size) {
-            var i = Math.floor(Math.log(size) / Math.log(1024));
+            let i = Math.floor(Math.log(size) / Math.log(1024));
             return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['o', 'ko', 'Mo', 'Go', 'To'][i];
         };
 
         function humanBitrate(size) {
-            var i = Math.floor(Math.log(size) / Math.log(1024));
+            let i = Math.floor(Math.log(size) / Math.log(1024));
             return (size / Math.pow(1024, i)).toFixed(2) * 1 + ' ' + ['bps', 'kbps', 'Mbps', 'Gbps', 'Tbps'][i];
         };
 
@@ -81,7 +84,7 @@ importScripts('MKVInfo.min.js');
             info.text += "-------------------\n";
             info.text += "File : " + info.filename + "\n";
 
-            var d= new Date(info.filedate);    
+            let d= new Date(info.filedate);    
             info.text += "Date : " + (d.getFullYear()) + '/' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' + d.getHours() + ':' + d.getMinutes() + "\n";
             info.text += "Size : " + humanFileSize(info.filesize) + "\n";
             info.text += "Format : "+info.typemovie+"\n";
@@ -100,7 +103,7 @@ importScripts('MKVInfo.min.js');
             info.text += "Count of streams : " + info.tracks.length + "\n";
             info.text += "\n";
 
-            for (var i = 0; i < info.tracks.length; i++) {
+            for (let i = 0; i < info.tracks.length; i++) {
                 if (info.tracks[i].typeEnt == 'Video'){
                     info.text += "Video :\n";
                 }
@@ -112,7 +115,7 @@ importScripts('MKVInfo.min.js');
                 }
                 info.text += "Track number " + info.tracks[i].Id + "\n";
                 if (info.tracks[i].typeEnt == 'Video' && (info.tracks[i].ConstantFramerate)){
-                    var nbf=parseInt(info.dureeS * info.tracks[i].ConstantFramerate) + 1;
+                    let nbf=parseInt(info.dureeS * info.tracks[i].ConstantFramerate) + 1;
                     info.text += "Count of samples : " + nbf + "\n";
                 }
                 if (info.tracks[i].langage){
@@ -133,15 +136,15 @@ importScripts('MKVInfo.min.js');
                     }
                     info.text += "Width in file : " + info.tracks[i].width + "\n";
                     info.text += "Heidth in file : " + info.tracks[i].height + "\n";
-                    info.text += "Codec Video more info :\n";
                     if (info.tracks[i].CodeC) {
+                        //info.text += "Codec Video more info :\n";
                         info.text += "CodeC : " + info.tracks[i].CodeC + "\n";
                     }
                 }
 
                 if (info.tracks[i].typeEnt == 'Audio') {
-                    info.text += "Codec Audio more info :\n";
                     if (info.tracks[i].CodeC) {
+                        //info.text += "Codec Audio more info :\n";
                         info.text += "CodeC : " + info.tracks[i].CodeC + "\n";
                     }
                     info.text += "Count of channels : " + info.tracks[i].nbChannels + "\n";
@@ -160,23 +163,30 @@ importScripts('MKVInfo.min.js');
 
 onmessage = function(event) {
 
-  var file = event.data;
+  let file = event.data[0];
+  let lfname=file.name.toLowerCase();
+  let lnum = event.data[1];
+  let mkvregex = new RegExp("(.*?)\.(mkv|webm)$");  
+
+    //if (file.type == 'video/x-matroska' || file.type == 'video/webm' || mkvregex.test(lfname)){ 
     if (file.type == 'video/x-matroska' || file.type == 'video/webm'){ 
         mkv(file, function(err, info) {
           if (err) {
-            console.log('error : ' + err);
+            //console.log('error : ' + err);
             postMessage({
-              'data' : 'error : ' + err
+              'data' : 'error : ' + err, 
+              'num' : lnum
             });
           } else {
             sortie_texte = human_reading(info);
             postMessage({
-              'data' : sortie_texte
+              'data' : sortie_texte,
+              'num' : lnum
             });
             //console.log(sortie_texte);
           }
         });
     } else {
-        postMessage({'data' : 'nop'});
-    }    
+        postMessage({'data' : 'nop', 'num' : lnum});
+    }   
   }
