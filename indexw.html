@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+<!DOCTYPE html>  
+<!--
+  //  INDEX V1 : ajout de la balise META UTF8  et du compteur (barre progress)
+  //             travaille maintenant et parallele et filtre Internet Explorer
+  //             date : 2020/12/14                                                 -->
+<meta charset="UTF-8">
 <html>
 
 <head>
@@ -10,91 +15,137 @@
         #opt{
             display : none;     
         }
+        #isIE{
+            display : none;
+        }
     </style> 
     <script type="text/javascript">
-            var ind=0;
-            var res=[];
-            var fileinput=[];
+            let ind=0;
+            let indarrived = 0;
+            let res=[];
+            let listeficname=[];
+            // 4 let pour progress
+            let maxBar = 200;
+            let currentBar = 0;
+            let progressBar;
+            let intervalId;
+            //let timedeb, timeend;                                      // pour évaluation de l'efficacité
 
-        function change_ind(t) {
-            document.querySelector('#out').innerHTML = "";
-            document.querySelector('#out').innerHTML = res[t].data;
-        }  
+            function change_ind(t) {
+                document.querySelector('#out').innerHTML = "";
+                document.querySelector('#out').innerHTML = res[t];
+            }  
 
-        function init(){
-            document.querySelector('#inp').onchange = function(e) {
+            function init(){
 
-                var MKVworker = new Worker('workerMKV.js'); 
+                /*     ------------------------------
+                       Interface ProgressBar
+                       ------------------------------  */                                
 
-                MKVworker.addEventListener('message', function(e) {
-                    if (e.data.data != 'nop'){
-                        res.push(e.data);
-                    } else {
-                        var tmp={};
-                        tmp.data=fileinput[res.length].name+" isn't a MKV file !";
-                        res.push(tmp);
-                    }    
-                    if (res.length < fileinput.length){
-                        ind++;
-                        MKVworker.postMessage(fileinput[ind]);
-                    } else {
-                        document.getElementById("inp").style.display="none";
-                        for (var k=0; k<res.length; k++){
-                            new_element = new Option(fileinput[k].name, k, false, true);
-                            document.getElementById("opt").options[document.getElementById("opt").options.length] = new_element;
-                        }
-                        document.querySelector("#opt").selectedIndex=0;
-                        document.querySelector("#opt").style.display="block";
-                        document.querySelector('#out').innerHTML = "";
-                        document.querySelector('#out').innerHTML = res[0].data;
+                let initialisation = function() {
+                  progressBar = document.getElementById( "progressBar" );
+                  progressBar.value = currentBar;
+                  progressBar.max = maxBar;
+                }
+
+                let displayBar = function() {
+                  //currentBar++;
+                  progressBar.value = currentBar;
+                }
+                intervalId = setInterval( displayBar , 100 ); // dysplayBar est appelée toutes les 100 millisecondes
+
+                initialisation();
+
+
+                /*     --------------------------------------------------
+                       Détection d'Internet Explorer : Edge fonctionne !!
+                       --------------------------------------------------  */    
+                let ua = window.navigator.userAgent;
+                let msie = ua.indexOf('MSIE ');
+                let trident = ua.indexOf('Trident/');
+                if ((msie > 0) || (trident > 0)){  
+                    document.getElementById('inp').style.visibility = 'hidden';
+                    document.getElementById('out').style.visibility = 'hidden';
+                    document.getElementById('isIE').style.display = 'inline';
+                }
+
+                /*     --------------------------------------------
+                            corps principal : le(s) Worker(s)        
+                       -------------------------------------------       */
+
+                document.querySelector('#inp').onchange = function(e) {
+
+                    let fichiersInput = document.querySelector("#inp");
+                    let fichiers = fichiersInput.files;
+                    let nbFichiers = fichiers.length;
+                    let tmp = {};
+
+                    //timedeb = Date.now();                                      // pour évaluation de l'efficacité
+
+                    for (let k=0; k<nbFichiers; k++){
+                        res.push('');
+                        new_element = new Option("", k, false, true);
+                        document.getElementById("opt").options[document.getElementById("opt").options.length] = new_element;
                     }
-                }, false);
+                    // Envoit les fichiers de manière synchrone les uns derrières les autres
+                    while (ind < nbFichiers){
 
-                fileinput=e.target.files;
-                MKVworker.postMessage(fileinput[ind]);
+                        listeficname.push(fichiers[ind].name);
+                        document.querySelector("#opt").options[ind].text=fichiers[ind].name;
+                        let MKVworker = new Worker('workerMKV.js');
+
+                        //      Retour du Worker
+                        MKVworker.addEventListener('message', function(e) {
+                            if (e.data.data != 'nop'){
+                                // pour la progressBar : 2 lignes ci-dessous
+                                indarrived++;
+                                currentBar = (indarrived / nbFichiers) * maxBar;
+                                res[e.data.num]=e.data.data;
+
+                            } else {
+                                // pour la progressBar : 2 lignes ci-dessous
+                                indarrived++;
+                                currentBar = (indarrived / nbFichiers) * maxBar;
+                                tmp.data=listeficname[e.data.num]+" isn't a MKV file !";
+                                res[e.data.num]=tmp.data;
+                            }    
+                            if (indarrived == nbFichiers){
+                                displayBar();
+                                clearInterval(intervalId);
+                                document.getElementById("inp").style.display="none";
+
+                                document.querySelector("#opt").selectedIndex=0;
+                                document.querySelector("#opt").style.display="block";
+                                document.querySelector('#out').innerHTML = "";
+                                document.querySelector('#out').innerHTML = res[0];
+
+                                //timeend = Date.now();                                      // pour évaluation de l'efficacité
+                                //let duration = timeend - timedeb;
+                                //alert('duration = '+duration);
+
+                            }
+                        }, false);
+
+                        MKVworker.postMessage([fichiers[ind],ind]);    // il en reste ? Envoit le suivant !!
+                        ind++;
+                    }
+
+                }
             }
-        }
     </script>
 </head>
 
 <body onload="init()">
     <center>
+        <p>Firefox could have troubles with multiple files. If troubles try <a href="http://aroug.eu/MKVInfo/firefox.html">http://aroug.eu/MKVInfo/firefox.html</a></p>
+        <p><progress id="progressBar"></progress></p>
+        <p id="isIE">Microsoft Internet not allowed ... Sorry !</p>
         <input id="inp" type="file" multiple>
         <select size="1" id="opt" onchange="change_ind(document.getElementById('opt').options.selectedIndex)"></select>
         <br>
-        <textarea id="out" rows="40" cols="120">Et alors ?? Choisissez un fichier type MKV (.MKV, .M4V, ... )</textarea>
+        <textarea id="out" rows="40" cols="120">And then ? Choose some MKV (or WebM) files ! </textarea>
     </center>
     <script type="text/javascript">  
-
-        document.querySelector('#inp').onchange = function(e) {
-            
-            var ind=0;
-            var res=[];
-            var fileinput=[];
-
-            var MKVworker = new Worker('workerMKV.js'); 
-
-            MKVworker.addEventListener('message', function(e) {
-                res.push(e.data);
-                if (res.length < fileinput.length){
-                    ind++;
-                    MKVworker.postMessage(fileinput[ind]);
-                } else {
-                    document.getElementById("inp").style.display="none";
-                    for (var k=0; k<res.length; k++){
-                        new_element = new Option(fileinput[k].name, k, false, true);
-                        document.getElementById("opt").options[document.getElementById("opt").options.length] = new_element;
-                    }
-                    document.querySelector("#opt").selectedIndex=0;
-                    document.querySelector("#opt").style.display="block";
-                    document.querySelector('#out').innerHTML = "";
-                    document.querySelector('#out').innerHTML = res[0].data;
-                }
-            }, false);
-
-            fileinput=e.target.files;
-            MKVworker.postMessage(fileinput[ind]);
-        }
     </script>
 </body>
 
