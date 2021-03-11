@@ -1,7 +1,10 @@
 /**
  * MKVInfo 
- * v 5l.0   2020/12/12
- *
+ * v 5.0   2020/12/12
+ *         2020/12/20    rebug date : lastModifiedDate (deprecate) => lastModified ET remontée du nombre d'accès disque
+ *                                    rajouter tags 55b0- 55bd + quelques contrôles permettant de remonter les erreurs rencontrées sur de mauvais fichiers :-)
+ * v 6.0   2021/02/11    rebug : cas de Jodorowsky's Dune (Element de type 'm' - Master - et de dataSize = 0  : ContentCompression en l'occurence)
+                                cas de Trahie : multiples éléments de type 'info' avec 1 seul possédant 'duration' 
  *       Documentation :
  *          https://www.ffmpeg.org/doxygen/2.1/matroska_8h_source.html
  *          https://github.com/themasch/node-ebml
@@ -12,55 +15,28 @@
  *          http://www.h-schmidt.net/FloatConverter/IEEE754.html
  *          https://stackoverflow.com/questions/43933735/conversion-utf-8-uint8array-to-utf-8-string
  *          https://fr.w3docs.com/snippets/javascript/comment-detecter-internet-explorer-en-javascript.html
+ *          http://openvibe.inria.fr/documentation/1.3.0/Doc_ParsingEBMLStreams.html
  */
 "use strict";
 
 var mkv = function(opts, fcb) {
     var info = {};
-    var atoms;
-    var options = {
-        type: 'uri',
-    };
-    if (typeof opts[0] === 'string') {
-        opts = {
-            file: opts,
-            type: 'uri'
-        };
-    } else {
-        opts = {
-            file: opts,
-            type: 'file'
-        };
-        info.file = opts.file;
-        info.filesize = opts.file.size;
-        info.filename = opts.file.name;
-        info.filedate = opts.file.lastModifiedDate;
+        info.file = opts;
+        info.filesize = info.file.size;
+        info.filename = info.file.name;
+        info.filedate = info.file.lastModified;
         info.offset = 0;
         info.tracks = [];
         info.JUNKS = []; //  for stocking JUNKS boxes to be devared after replacing values !
         info.noVal = []; //  for stocking boxes where values not obtained during boxes parsing
         info.lengthmax = 128; // could be adapted !!
-    }
-    for (var k in opts) {
-        options[k] = opts[k];
-    }
-
-    if (!options.file) {
-        return cb('No file was set');
-    }
+        info.nbboucleslect = 0; // number of acces to blob.slice.read
 
     var MKVebml = {};
 
-    MKVebml.parse = async function(fcb) {
-        /********************************************** that was a pretty good idea ... Helas ! See down
-        Array.prototype.max = function() {
-        return Math.max.apply(null, this);
-        };
 
-        Array.prototype.min = function() {
-        return Math.min.apply(null, this);
-        }
-        ***********************************************************************************************/
+    MKVebml.parse = async function(fcb) {
+
         var schema = {
             "80": {
                 "name": "ChapterDisplay",
@@ -1189,7 +1165,114 @@ var mkv = function(opts, fcb) {
                 "range": "> 0",
                 "strong": "Informational",
                 "description": "Number of frames per second.  only."
+            },                                            /*           // new tags (v1.6                ---------------------- */
+            "55b0": {
+                "name": "Colour",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "4",
+                "type": "m",
+                "description": "Colour Element."
             },
+            "55b1": {
+                "name": "MatrixCoefficients",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "default": "2",
+                "description": "MatrixCoefficients Element."
+            },
+            "55b2": {
+                "name": "BitsPerChannel",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "5",
+                "type": "u",
+                "default": "0",
+                "description": "Number of decoded bits per channel."
+            },
+            "55b3": {
+                "name": "ChromaSubsamplingHorz",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "description": "ChromaSubsamplingHorz."
+            },
+            "55b4": {
+                "name": "ChromaSubsamplingVert",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "default": "1",
+                "description": "ChromaSubsamplingVert."
+            },
+            "55b5": {
+                "name": "CbSubsamplingHorz",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "5",
+                "type": "u",
+                "default": "1",
+                "description": "Number of decoded bits per channel."
+            },
+            "55b6": {
+                "name": "CbSubsamplingVert",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "description": "CbSubsamplingVert."
+            },
+            "55b7": {
+                "name": "ChromaSitingHorz",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "default": "0",
+                "description": "ChromaSitingHorz."
+            },
+            "55b8": {
+                "name": "ChromaSitingVert",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "5",
+                "type": "u",
+                "default": "0",
+                "description": "ChromaSitingVert."
+            },
+            "55b9": {
+                "name": "Range",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "description": "Clipping of the color ranges."
+            },
+            "55ba": {
+                "name": "TransferCharacteristics",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "default": "2",
+                "description": "ChromaSitingHorz."
+            },
+            "55bb": {
+                "name": "Primaries",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "5",
+                "type": "u",
+                "default": "2",
+                "description": "Primaries Element."
+            },
+            "55bc": {
+                "name": "MaxCLL",
+                "cppname": "En_vla_du_slow_en_vla",
+                "level": "5",
+                "type": "u",
+                "description": "Maximum brightness of a single pixel."
+            },
+            "55bd": {
+                "name": "MaxFALL",
+                "cppname": "En_vla_du_slow_en_vla!",
+                "level": "5",
+                "type": "u",
+                "default": "0",
+                "description": "ChromaSitingVert."
+            },                                                                      /* -----------------------nouveaux tags-------------- */
             "2fb523": {
                 "name": "GammaValue",
                 "cppname": "VideoGamma",
@@ -2183,13 +2266,19 @@ var mkv = function(opts, fcb) {
         } // doubleprec
 
         function litHex(buffer, pos, nb) {
-            var id = [];
-            for (var i = pos; i < pos + nb; i++) {
-                var tmp = buffer.getUint8(i).toString(16);
-                if (tmp.length == 1) tmp = '0' + tmp;
-                id.push(tmp);
+            if ((pos + nb <= buffer.byteLength) && (pos >= 0) && (nb >= 0)) {
+                var id = [];
+                for (var i = pos; i < pos + nb; i++) {
+                    var tmp = buffer.getUint8(i).toString(16);
+                    if (tmp.length == 1) tmp = '0' + tmp;
+                    id.push(tmp);
+                }
+                return id.join("");
+            } else {
+                console.log(JSON.stringify(info));
+                console.log('Problème taille de buffer');
+                fcb('le buffer est trop petit');
             }
-            return id.join("");
         } // litHex
 
 
@@ -2201,28 +2290,20 @@ var mkv = function(opts, fcb) {
                 }
                 return decodeURIComponent(escape(id.join("")));
             } else {
-                console.log(buffer.byteLength + ' , ' + pos + ' , ' + nb + ' , ' + info.ind)
+                console.log(JSON.stringify(info));
+                console.log('Problème taille de buffer');
+                fcb('le buffer est trop petit');
             }
         } // litCar
-
-        async function readBytes(offset, nbB) {
-            if ((offset + nbB <= info.filesize) && (offset >= 0) && (nbB >= 0)) {
-
-                var partie = info.file.slice(offset, offset + nbB);
-                var tmpblob = new Response(partie);
-                var buffer = await tmpblob.arrayBuffer();
-                return new DataView(buffer);
-            } else {
-                return false;
-            }
-        } // readBytes
 
         async function compvareval(ind, Boxes) {
             var offset = info.noVal[ind].offset;
             var type = info.noVal[ind].type;
             var nbB = info.noVal[ind].nbB;
 
+            info.nbboucleslect++;
             var partie = info.file.slice(offset, offset + nbB);
+            //console.log('Accès fichier avec offset='+offset);
             var tmpblob = new Response(partie);
             var buffer = await tmpblob.arrayBuffer(); // ça passe ???       
             var buffv = new DataView(buffer);
@@ -2280,8 +2361,9 @@ var mkv = function(opts, fcb) {
             }
             var tagStr = litHex(buffer, 0, length);
             if (schema[tagStr] === undefined) {
-                fcb('le tag ' + tagStr + ' absent de schema');
+                console.log(JSON.stringify(info));
                 console.log('le tag ' + tagStr + ' absent de schema');
+                fcb('le tag ' + tagStr + ' absent de schema');
             }
             var tagObj = {
                 tag: value,
@@ -2291,6 +2373,10 @@ var mkv = function(opts, fcb) {
                 start: info.offset,
                 next: length // next position in the buffer
             };
+                /*  debug ------------------------------------------- */
+                //if (schema[tagStr].name == 'ContentCompression'){
+                //    var trc=5;
+                //}
 
             var start = length; // offset in buffer of dataSize
             for (var length = 1; length <= 8; length++) {
@@ -2370,14 +2456,14 @@ var mkv = function(opts, fcb) {
                 tmp.name = tagObj.name;
                 tmp.type = tagObj.type;
                 tmp.nbB = tagObj.dataSize;
-                tmp.offset = tagObj.start + tagObj.next
+                tmp.offset = tagObj.start + tagObj.next;
                 tmp.ascendance = ascendance.join("-");
                 info.noVal.push(tmp);
             }
             if (tagObj.name == 'Void') { // on place de côté l'ascendance des boites "VOID"
                 info.JUNKS.push(ascendance.join("-"));
             }
-            if (tagObj.type != "m") {
+            if ((tagObj.type != "m") || ((tagObj.type == 'm') && (tagObj.dataSize == 0))){
                 // Which box is the next mother ?   / Quelle boite est la prochaine mère ? 
                 ascendance.pop(); // ascendance points to boxmere
                 while ((boxmother.nextoffset == info.offset) && (ascendance.length > 1)) { //
@@ -2389,6 +2475,7 @@ var mkv = function(opts, fcb) {
                 }
             } else {
                 if ((tagObj.name == 'Cues') || (tagObj.name == 'Cluster') || (tagObj.name == "Tags") || (tagObj.name == "Chapters") || (tagObj.name == "SeekHead")) {
+                //if ((tagObj.name == 'Cues') || (tagObj.name == "Tags") || (tagObj.name == "Chapters") || (tagObj.name == "SeekHead")) {
                     // we skip ! 
                     info.offset = tagObj.nextoffset;
                     boxmother.children.pop();
@@ -2422,8 +2509,10 @@ var mkv = function(opts, fcb) {
         while (info.offset < info.filesize) {
             var nbBtoRead = info.filesize - info.offset;
             var nbB = Math.min(20, nbBtoRead);
-            var partie = info.file.slice(info.offset, info.offset + nbB);
+            var partie = info.file.slice(info.offset, info.offset + nbB);            
+            info.nbboucleslect++;
             var tmpblob = new Response(partie);
+            //console.log('Accès fichier avec offset='+info.offset);
             var buffer = await tmpblob.arrayBuffer(); // ça passe !!!         
             var buffv = new DataView(buffer);
             readAtoms(buffv);
@@ -2436,7 +2525,7 @@ var mkv = function(opts, fcb) {
         Traitement de nettoyage des info.noVal, de création des atoms[] 
             et de mise en clair dans info
         -----------------------------------------------------------  */
-        atoms = [];
+        var atoms = [];
         var nbBtoRead = info.filesize - info.offset;
         var nbB = Math.min(20, nbBtoRead);
         if (info.noVal.length > 0) {
@@ -2473,6 +2562,8 @@ var mkv = function(opts, fcb) {
             info.isInfo = -1;
             info.isTracks = -1;
             info.typemovie = "matroska"; // default
+            info.isDuration = -1;  // ira stocker l'indice du bon élément de type info possédant cette propriété ! ( v6 )
+
             // Stocke dans info.isEBML et info.isSegment les numéros (s'ils existent) des 2 branches correspondantes de la structure atoms
             // Si l'une ou l'autre de ces 2 branches n'existait pas, info.isEBML et/ou info.isSegment resterait à la valeur -1 
             for (var k = 0; k < atoms.length; k++) {
@@ -2483,7 +2574,17 @@ var mkv = function(opts, fcb) {
             // précise - en fait - le nombre de pistes correspondantes à Info et Tracks de la même manière que EBML et Segment ont été
             // mis à jour dans info
             for (var k = 0; k < atoms[info.isSegment].children.length; k++) {
-                if (atoms[info.isSegment].children[k].name == 'Info') info.isInfo = k;
+                if (atoms[info.isSegment].children[k].name == 'Info') {
+                    info.isInfo = k;
+                    // Il y-a-t-il duration ?
+                    var tmpinfo = atoms[info.isSegment].children[k];
+                    for (var nb=0; nb < tmpinfo.children.length; nb++){
+                        if (tmpinfo.children[nb].name == 'Duration'){
+                            info.isDuration = k; 
+                            info.dureeS = parseInt(tmpinfo.children[nb].value) / 1000; // seconds  
+                        }    
+                    }
+                }    
                 if (atoms[info.isSegment].children[k].name == 'Tracks') info.isTracks = k;
             }
             // va rechercher, s'il existe, le DocType (normalement matroska ou webM) et met à jour l'information info.typemovie
@@ -2497,11 +2598,14 @@ var mkv = function(opts, fcb) {
             for (var k = 0; k < atominfo.children.length; k++) {
                 if (atominfo.children[k].name == 'WritingApp') info.Creator = atominfo.children[k].value;
                 if (atominfo.children[k].name == 'MuxingApp') info.WritingLibrary = atominfo.children[k].value;
-                if (atominfo.children[k].name == 'Duration') info.dureeS = parseInt(atominfo.children[k].value) / 1000; // seconds
+                //if (atominfo.children[k].name == 'Duration') info.dureeS = parseInt(atominfo.children[k].value) / 1000; // seconds
                 if (atominfo.children[k].name == 'SegmentUID') info.UID = atominfo.children[k].value;
             }
             // de la même manière, SI isSegment et isTrack sont > -1 ...
             var atomtracks = atoms[info.isSegment].children[info.isTracks];
+            // Considère que les "trackEntry" ne peuvent être que filles de Tracks (puisque info.isTracks = k)
+
+
             for (var k = 0; k < atomtracks.children.length; k++) {
                 if (atomtracks.children[k].name == "TrackEntry") {
                     var atomtrack = atomtracks.children[k];
@@ -2548,6 +2652,7 @@ var mkv = function(opts, fcb) {
                 } // TrackEntry
             } //       boucle sur atomtracks.children.length
         }
+        //console.log('nb lectures MKV = '+info.nbboucleslect);
         fcb(null, info); // A priori le traitement est terminé : on renvoit info !
     }; // fin de MKVebml.parse
 
@@ -2571,4 +2676,4 @@ if (typeof module !== 'undefined' && module.exports) {
             return mkv;
         });
     }
-};
+}
